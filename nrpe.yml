@@ -1,0 +1,96 @@
+---
+ - hosts: imagepull
+   become: true
+   tasks:
+     - name: install gcc, glibc, glibc-common and GD
+       yum: name={{ item }} state=present
+       with_items:
+        - gcc
+        - glibc
+        - glibc-common
+        - gd
+        - gd-devel
+        - make
+        - net-snmp
+        - openssl-devel
+        - xinetd
+     - name: Creating nagios user
+       user:
+         name: nagios
+         shell: /bin/bash
+         append: yes
+     - name: Download Nagios Plugins 2.1.2
+       get_url:
+         url: https://www.nagios-plugins.org/download/nagios-plugins-2.1.2.tar.gz
+         dest: /usr/local/
+     - name: Extract nagios-plugins-2.1.2.tar.gz
+       unarchive:
+         src: /usr/local/nagios-plugins-2.1.2.tar.gz
+         dest: /usr/local
+         remote_src: yes
+     - name: Change the working directory to /usr/local/nagios-plugins-2.1.2 and run the command.
+       command: ./configure
+       args:
+         chdir: /usr/local/nagios-plugins-2.1.2
+     - name: Build target
+       make:
+        chdir: /usr/local/nagios-plugins-2.1.2
+     - name: Run 'install' target as root
+       make:
+        chdir: /usr/local/nagios-plugins-2.1.2
+        target: install
+     - name: Change ownership to nagios
+       file:
+        path: /usr/local/nagios
+        owner: nagios
+        group: nagios
+     - name: Change ownership to nagios-plugin
+       file:
+        path: /usr/local/nagios/libexec
+        owner: nagios
+        group: nagios
+     - name: Download Nagios Plugins 2.1.2
+       get_url:
+         url: https://github.com/NagiosEnterprises/nrpe/releases/download/nrpe-3.2.1/nrpe-3.2.1.tar.gz
+         dest: /usr/local/
+     - name: Extract nrpe
+       unarchive:
+         src: /usr/local/nrpe-3.2.1.tar.gz
+         dest: /usr/local
+         remote_src: yes
+     - name: Change the working directory to /usr/local/nrpe-3.2.1 and run the command.
+       command: ./configure
+       args:
+          chdir: /usr/local/nrpe-3.2.1
+     - name: Build target
+       make:
+        chdir: /usr/local/nrpe-3.2.1
+        target: all
+     - name: Run 'install' target as root
+       make:
+        chdir: /usr/local/nrpe-3.2.1
+        target: install-plugin
+     - name: Run 'install' target as root
+       make:
+        chdir: /usr/local/nrpe-3.2.1
+        target: install-daemon
+     - name: Run 'install' target as root
+       make:
+        chdir: /usr/local/nrpe-3.2.1
+        target: install-config
+     - name: Run 'install' target as root
+       make:
+        chdir: /usr/local/nrpe-3.2.1
+        target: install-inetd
+     - name: Replace a localhost entry with our own
+       shell: sed -i 's/127.0.0.1/127.0.0.1 localhost 192.168.37.131/g' /etc/xinetd.d/nrpe
+     - name: Add 5666 port to service
+       lineinfile:
+        path: /etc/services
+        insertafter: "vfmobile        5646/tcp                # Ventureforth Mobile"
+        line: "nrpe            5666/tcp                 NRPE"
+     - name: Start service httpd, if not started
+       service:
+         name: xinetd
+         state: started
+
